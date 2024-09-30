@@ -16,6 +16,9 @@ export function create(signature: ts.Symbol, namedDeclaration: ts.NamedDeclarati
     if (methodSignature !== undefined) {
         const returnType: ts.Type = methodSignature.getReturnType();
         result.returnType = checker.typeToString(returnType, namedDeclaration);
+        let returnTypeNamespace: string=ComponentFactory.getNamespace(returnType.symbol);
+        result.returnTypeFullName = (returnTypeNamespace!="")?returnTypeNamespace+"."+result.returnType : result.returnType;
+        
         result.returnTypeFile = ComponentFactory.getOriginalFileOriginalType(returnType, checker);
         result.parameters = methodSignature.parameters
             .map((parameter: ts.Symbol): Parameter => ParameterFactory.create(parameter, checker));

@@ -2,13 +2,14 @@ import ts from 'typescript';
 import { Interface } from '../Components/Interface';
 import * as ComponentFactory from './ComponentFactory';
 
-export function create(interfaceSymbol: ts.Symbol, checker: ts.TypeChecker): Interface {
+export function create(interfaceSymbol: ts.Symbol, checker: ts.TypeChecker, options:any): Interface {
     const result: Interface = new Interface(interfaceSymbol.getName());
+    result.namespace=ComponentFactory.getNamespace(interfaceSymbol);
 
     const declaration: ts.InterfaceDeclaration[] | undefined = <ts.InterfaceDeclaration[] | undefined>interfaceSymbol.getDeclarations();
 
     if (interfaceSymbol.members !== undefined) {
-        result.members = ComponentFactory.serializeMethods(interfaceSymbol.members, checker);
+        result.members = ComponentFactory.serializeMethods(interfaceSymbol.members, checker,options);
         result.typeParameters = ComponentFactory.serializeTypeParameters(interfaceSymbol.members, checker);
     }
 

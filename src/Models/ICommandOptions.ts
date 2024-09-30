@@ -5,4 +5,5 @@ export interface ICommandOptions {
     format?: string;
     onlyClasses: boolean;
     customization?: string;  // optional customization file (plantuml include file)
+    onlyAssociations?: boolean;
 }

@@ -16,6 +16,7 @@ export class Class extends ComponentComposite {
     public implementsInterfaces: string[] = [];
     public implementsInterfacesFiles: string[] = [];
     public typeParameters: IComponentComposite[] = [];
+    public namespace?: string;
 
     constructor(name: string, fileName: string) {
         super(name);

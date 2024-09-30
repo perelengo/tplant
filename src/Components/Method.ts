@@ -16,4 +16,5 @@ export class Method extends ComponentComposite {
     public isAsync: boolean = false;
     public isOptional: boolean = false;
     public isStatic: boolean = false;
+    public returnTypeFullName: string="";
 }

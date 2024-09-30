@@ -30,9 +30,9 @@ export class PlantUMLFormat extends Formatter {
         return ['@enduml'];
     }
 
-    public addAssociation(type1: string, cardinality: string, type2: string) : string[] {
+    public addAssociation(type1: string, cardinality: string, type2: string, endName:string) : string[] {
         return [
-            `${type1} --> "${cardinality}" ${type2}`
+            `${type1} --> "${cardinality} ${endName}" ${(<any>type2).replaceAll(/\[\]/gi,"")}`
         ];
     }
 
@@ -42,7 +42,8 @@ export class PlantUMLFormat extends Formatter {
         if (comp.isAbstract) {
             firstLine.push('abstract ');
         }
-        firstLine.push(`class ${comp.name}`);
+        let fullName=(!comp.namespace || (comp.namespace && comp.namespace.length==0))?comp.name:comp.namespace+"."+comp.name;
+        firstLine.push(`class "${comp.name}" as ${fullName}`);
         if (comp.typeParameters.length > 0) {
             firstLine.push('<');
             firstLine.push(comp.typeParameters
@@ -67,7 +68,9 @@ export class PlantUMLFormat extends Formatter {
         }
         result.push(firstLine.join(''));
         comp.members.forEach((member: IComponentComposite): void => {
-            result.push(`    ${this.serialize(member)}`);
+            let line=this.serialize(member);
+            if(line!=="")
+                result.push(`    ${line}`);
         });
         if (comp.members.length > 0) {
             result.push('}');
@@ -76,7 +79,8 @@ export class PlantUMLFormat extends Formatter {
 
     public serializeEnum(comp: Enum): string {
         const result: string[] = [];
-        let declaration: string = `enum ${comp.name}`;
+        let fullName=(!comp.namespace || (comp.namespace && comp.namespace.length==0))?comp.name:comp.namespace+"."+comp.name;
+        let declaration: string = `enum "${comp.name}" as ${fullName}`;
         if (comp.values.length > 0) {
             declaration += ' {';
         }
@@ -94,7 +98,8 @@ export class PlantUMLFormat extends Formatter {
     public serializeInterface(comp: Interface): string {
         const result: string[] = [];
         const firstLine: string[] = [];
-        firstLine.push(`interface ${comp.name}`);
+        let fullName=(!comp.namespace || (comp.namespace && comp.namespace.length==0))?comp.name:comp.namespace+"."+comp.name;
+        firstLine.push(`interface "${comp.name}" as ${fullName}`);
         if (comp.typeParameters.length > 0) {
             firstLine.push('<');
             firstLine.push(comp.typeParameters

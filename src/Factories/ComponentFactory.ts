@@ -18,7 +18,7 @@ export function isNodeExported(node: ts.Node): boolean {
         node.parent.kind === ts.SyntaxKind.ModuleBlock;
 }
 
-export function create(fileName: string, node: ts.Node, checker: ts.TypeChecker): IComponentComposite[] {
+export function create(fileName: string, node: ts.Node, checker: ts.TypeChecker, options:any): IComponentComposite[] {
     const componentComposites: IComponentComposite[] = [];
 
     ts.forEachChild(node, (childNode: ts.Node) => {
@@ -28,44 +28,45 @@ export function create(fileName: string, node: ts.Node, checker: ts.TypeChecker)
             return;
         }
 
-        if (childNode.kind === ts.SyntaxKind.ClassDeclaration) {
+        
+    if (childNode.kind === ts.SyntaxKind.ClassDeclaration) {
         const currentNode: ts.ClassLikeDeclarationBase = <ts.ClassLikeDeclarationBase>childNode;
         if (currentNode.name === undefined) {
           return;
         }
         // This is a top level class, get its symbol
-        const classSymbol: ts.Symbol | undefined = checker.getSymbolAtLocation(currentNode.name);
+        const classSymbol: ts.Symbol | undefined = (<any>currentNode).symbol;
         if (classSymbol === undefined) {
           return;
         }
-        componentComposites.push(ClassFactory.create(fileName, classSymbol, checker));
+        componentComposites.push(ClassFactory.create(fileName, classSymbol, checker,options));
 
         // No need to walk any further, class expressions/inner declarations
         // cannot be exported
-      } else if (childNode.kind === ts.SyntaxKind.InterfaceDeclaration) {
+    } else if (childNode.kind === ts.SyntaxKind.InterfaceDeclaration) {
         const currentNode: ts.InterfaceDeclaration = <ts.InterfaceDeclaration>childNode;
-        const interfaceSymbol: ts.Symbol | undefined = checker.getSymbolAtLocation(currentNode.name);
+        const interfaceSymbol: ts.Symbol | undefined = (<any>currentNode).symbol;
         if (interfaceSymbol === undefined) {
           return;
         }
-        componentComposites.push(InterfaceFactory.create(interfaceSymbol, checker));
-      } else if (childNode.kind === ts.SyntaxKind.ModuleDeclaration) {
+        componentComposites.push(InterfaceFactory.create(interfaceSymbol, checker,options));
+    } else if (childNode.kind === ts.SyntaxKind.ModuleDeclaration) {
         const currentNode: ts.NamespaceDeclaration = <ts.NamespaceDeclaration>childNode;
-        const namespaceSymbol: ts.Symbol | undefined = checker.getSymbolAtLocation(currentNode.name);
+        const namespaceSymbol: any = (<any>currentNode);
         if (namespaceSymbol === undefined) {
           return;
         }
-        componentComposites.push(NamespaceFactory.create(fileName, namespaceSymbol, checker));
-      } else if (childNode.kind === ts.SyntaxKind.EnumDeclaration) {
+        componentComposites.push(NamespaceFactory.create(fileName, namespaceSymbol, checker, options));
+    } else if (childNode.kind === ts.SyntaxKind.EnumDeclaration) {
         const currentNode: ts.EnumDeclaration = <ts.EnumDeclaration>childNode;
-        const enumSymbol: ts.Symbol | undefined = checker.getSymbolAtLocation(currentNode.name);
+        const enumSymbol: ts.Symbol | undefined = (<any>currentNode).symbol;
         if (enumSymbol === undefined) {
           return;
         }
-        componentComposites.push(EnumFactory.create(enumSymbol));
+        componentComposites.push(EnumFactory.create(enumSymbol,options));
 
         return;
-      }
+    }
       // Functions are not methods in PlantUML! The (fake) methods (that are functions) get placed in the PlantUML outside of a class, and it won't render.
       //  else if (childNode.kind === ts.SyntaxKind.FunctionDeclaration) {
       //   const currentNode: ts.FunctionDeclaration = <ts.FunctionDeclaration>childNode;
@@ -217,7 +218,7 @@ export function serializeConstructors(
   return result;
 }
 
-export function serializeMethods(memberSymbols: ts.UnderscoreEscapedMap<ts.Symbol>, checker: ts.TypeChecker): (Property | Method)[] {
+export function serializeMethods(memberSymbols: ts.UnderscoreEscapedMap<ts.Symbol>, checker: ts.TypeChecker, options:any): (Property | Method)[] {
     const result: (Property | Method)[] = [];
 
     if (memberSymbols !== undefined) {
@@ -227,7 +228,7 @@ export function serializeMethods(memberSymbols: ts.UnderscoreEscapedMap<ts.Symbo
                 return;
             }
             memberDeclarations.forEach((memberDeclaration: ts.NamedDeclaration): void => {
-                if (isMethod(memberDeclaration)) {
+                if (isMethod(memberDeclaration) && !options.onlyAssociations) {
                     result.push(MethodFactory.create(memberSymbol, memberDeclaration, checker));
                 } else if (isProperty(memberDeclaration)) {
                     result.push(PropertyFactory.create(memberSymbol, memberDeclaration, checker));
@@ -265,4 +266,90 @@ export function hasInitializer(declaration: ts.ParameterDeclaration): boolean {
 
 export function isOptional(declaration: ts.PropertyDeclaration | ts.ParameterDeclaration | ts.MethodDeclaration): boolean {
     return declaration.questionToken !== undefined;
+}
+
+export function getNamespace(symbol: ts.Symbol): string{
+    if(symbol==undefined)
+        return "";
+    if((<any>symbol).parent && (<any>symbol).parent.declarations && (<any>symbol).parent.declarations[0].kind === ts.SyntaxKind.ModuleDeclaration){
+        const parent: any=(<any>symbol).parent;
+        let ns=(<any>symbol).parent.name;
+        if((<any>parent).parent && (<any>parent).parent.declarations[0].kind === ts.SyntaxKind.ModuleDeclaration)
+            ns= getNamespace(parent)+"."+ns;
+        return ns;
+    }else{
+        return "";
+    }
+}
+
+export function getSourceCode(symbol:ts.Symbol){
+    if((<any>symbol).parent && (<any>symbol).parent.valueDeclaration.kind !== ts.SyntaxKind.SourceFile){
+        const parent: any=(<any>symbol).parent;
+        
+        if((<any>parent).valueDeclaration.parent.kind !== ts.SyntaxKind.SourceFile)
+            return getSourceCode(parent);
+        else
+            return (<any>parent).valueDeclaration.parent;   
+
+    }else{
+        return null;
+    }    
+}
+
+export function getImports(source:any):string[]{
+    let importedNamespaces:string[]=[];    
+    let st:any=source.statements;
+    if(st){
+        st.forEach( (n:any)=> {
+            let importedNamespaces2:string[]=getImports2(n);
+            if(importedNamespaces2.length>0)
+                importedNamespaces=importedNamespaces.concat(importedNamespaces2);
+        });
+    }else{
+        let importedNamespaces2:string[]=getImports2(source.nextContainer);
+        if(importedNamespaces2.length>0)
+            importedNamespaces=importedNamespaces.concat(importedNamespaces2);
+    }
+    return importedNamespaces;
+}
+
+function getImports2(n: any):string[]{
+    let importedNamespaces:string[]=[];
+    if(n==undefined)
+        return importedNamespaces;
+    if(n.body && n.body.statements){
+        n.body.statements.forEach((element:any) => {
+            if(element.moduleReference){
+                 let importedNamespace:string=getLeftRightRecursiveToStringAsNamespace(element.moduleReference,"");
+                 if(importedNamespace!="")
+                    importedNamespaces.push(importedNamespace);
+            }
+        });   
+    }
+
+    if(n.kind === ts.SyntaxKind.ModuleDeclaration ){
+        let importedNamespaces2:string[]= getImports(n.nextContainer);
+        if(importedNamespaces2.length>0)
+            importedNamespaces=importedNamespaces.concat(importedNamespaces2);
+    }
+    return importedNamespaces;
+}
+
+function getLeftRightRecursiveToStringAsNamespace(moduleReference : any,acum : string):string{
+    let aux:string = acum;
+    if(moduleReference.left){
+        if(moduleReference.left.escapedText){
+            aux+=(aux!="")?".":"";
+            aux+=moduleReference.left.escapedText;
+        }
+        aux=getLeftRightRecursiveToStringAsNamespace(moduleReference.left,aux);
+    }
+    if(moduleReference.right){
+        if(moduleReference.right.escapedText){
+            aux+=(aux!="")?".":"";
+            aux+=moduleReference.right.escapedText;
+        }
+        aux=getLeftRightRecursiveToStringAsNamespace(moduleReference.right,aux);
+    }
+    return aux;
 }

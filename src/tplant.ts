@@ -14,7 +14,8 @@ const DEFAULT_FILE_NAME = 'source.ts';
 
 export function generateDocumentation(
     fileNames: ReadonlyArray<string> | string,
-    options: ts.CompilerOptions = ts.getDefaultCompilerOptions()
+    options: ts.CompilerOptions = ts.getDefaultCompilerOptions(),
+    additionalOptions:any
 ): IComponentComposite[] {
 
     // Build a program using the set of root file names in fileNames
@@ -39,7 +40,7 @@ export function generateDocumentation(
     program.getSourceFiles()
         .forEach((sourceFile: ts.SourceFile): void => {
             if (!sourceFile.isDeclarationFile) {
-                const file: IComponentComposite | undefined = FileFactory.create(sourceFile.fileName, sourceFile, checker);
+                const file: IComponentComposite | undefined = FileFactory.create(sourceFile.fileName, sourceFile, checker,additionalOptions);
                 if (file !== undefined) {
                     result.push(file);
                 }
@@ -70,7 +71,8 @@ export function convertToPlant(files: IComponentComposite[], options: ICommandOp
     associations: false,
     onlyInterfaces: false,
     format: 'plantuml',
-    onlyClasses: false
+    onlyClasses: false,
+	onlyAssociations: false
 }): string {
 
     let formatter : Formatter;

@@ -10,5 +10,5 @@ export class Parameter extends ComponentComposite {
     public isOptional: boolean = false;
     public parameterType: string = 'any';
     public parameterTypeFile: string = '';
-
+    public returnTypeFullName: string="";
 }

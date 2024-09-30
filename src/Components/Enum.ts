@@ -7,4 +7,5 @@ import { ComponentComposite, IComponentComposite } from '../Models/IComponentCom
 export class Enum extends ComponentComposite {
     public readonly componentKind: ComponentKind = ComponentKind.ENUM;
     public values: IComponentComposite[] = [];
+    public namespace?: string;
 }

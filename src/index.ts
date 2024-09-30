@@ -29,13 +29,18 @@ commander
     )
     .option('-A, --associations', 'Show associations between classes with cardinalities')
     .option('-I, --only-interfaces', 'Only output interfaces')
-    .option('-C, --only-classes', 'Only output classes')
+    .option('-R, --only-associations', 'Only output relations')
+    .option('-M, --only-classes', 'Only output classes')
     .option('-f, --format <path>', 'Define the format of output')
     .option('-T, --targetClass <className>', 'Display class hierarchy diagram')
     .option('-c, --customize <path>', 'Customize the output diagram with an included plantuml file')
     .parse(process.argv);
 
 const options: Commander.OptionValues = commander.opts();
+options.input="C:/dev/EMA/CT2/Projects/ClinicalTrialWorkspaces/ct-common-ui/src/lib/common/assess/*.ts";
+options.project="C:/dev/EMA/CT2/Projects/ClinicalTrialWorkspaces/ct-common-ui/tsconfig.json";
+options.associations=true;
+options.onlyAssociations=true;
 
 if (!options.input) {
     console.error('Missing input file');
@@ -48,7 +53,10 @@ if (options.exclude !== undefined) {
     globOptions.ignore = <string>options.exclude;
 }
 
+
 const matches = globSync(<string>options.input, globOptions) as string[];
+
+
 
 const tsConfigFile: string | undefined = findTsConfigFile(<string>options.input, <string | undefined>options.tsconfig);
 
@@ -66,14 +74,25 @@ if (options.customize !== undefined) {
 }
 
 const plantUMLDocument: string = tplant.convertToPlant(
-    tplant.generateDocumentation(matches, getCompilerOptions(tsConfigFile)),
+    tplant.generateDocumentation(matches, getCompilerOptions(tsConfigFile),
     {
         associations: <boolean>options.associations,
         onlyInterfaces: <boolean>options.onlyInterfaces,
         format: <string> options.format,
         targetClass: <string> options.targetClass,
         onlyClasses: <boolean> options.onlyClasses,
-        customization: <string> options.customize
+        customization: <string> options.customize,
+        onlyAssociations: <boolean> options.onlyAssociations
+    }
+    ),
+    {
+        associations: <boolean>options.associations,
+        onlyInterfaces: <boolean>options.onlyInterfaces,
+        format: <string> options.format,
+        targetClass: <string> options.targetClass,
+        onlyClasses: <boolean> options.onlyClasses,
+        customization: <string> options.customize,
+        onlyAssociations: <boolean> options.onlyAssociations
     }
 );
 

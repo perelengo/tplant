@@ -13,4 +13,5 @@ export class Property extends ComponentComposite {
     public isOptional: boolean = false;
     public isReadonly: boolean = false;
     public isStatic: boolean = false;
+    public returnTypeFullName: string="";
 }

@@ -56,7 +56,7 @@ export class MermaidFormat extends Formatter {
         return result.join(os.EOL);
     }
 
-    public addAssociation(type1: string, cardinality: string, type2: string) : string[] {
+    public addAssociation(type1: string, cardinality: string, type2: string, _endName:string) : string[] {
         return [
             `${type1} ..> "${cardinality}" ${type2}`
         ];

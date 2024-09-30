@@ -24,6 +24,15 @@ export function create(parameterSymbol: ts.Symbol, checker: ts.TypeChecker): Par
         typeOfSymbol,
         declaration
     );
+    if(typeOfSymbol.symbol){
+        let returnTypeNamespace: string=ComponentFactory.getNamespace(typeOfSymbol.symbol);
+        result.returnTypeFullName = (returnTypeNamespace!="")?returnTypeNamespace+"."+result.parameterType : result.parameterType;
+    }else if(typeOfSymbol.aliasSymbol){
+        let returnTypeNamespace: string=ComponentFactory.getNamespace(typeOfSymbol.aliasSymbol);
+        result.returnTypeFullName = (returnTypeNamespace!="")?returnTypeNamespace+"."+result.parameterType : result.parameterType;
+    }else{
+        result.returnTypeFullName = result.parameterType;
+    } 
 
     result.parameterTypeFile = ComponentFactory.getOriginalFileOriginalType(typeOfSymbol, checker);
 
