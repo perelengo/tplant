@@ -10,4 +10,6 @@ export class Interface extends ComponentComposite {
     public extendsInterface: string[] = [];
     public extendsInterfaceFiles: string[] = [];
     public typeParameters: IComponentComposite[] = [];
+    public namespace?: string;
+    public moduleName?: string;
 }

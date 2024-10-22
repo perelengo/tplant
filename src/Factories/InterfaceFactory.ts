@@ -2,14 +2,22 @@ import ts from 'typescript';
 import { Interface } from '../Components/Interface';
 import * as ComponentFactory from './ComponentFactory';
 
-export function create(interfaceSymbol: ts.Symbol, checker: ts.TypeChecker): Interface {
+export function create(fileName: string,interfaceSymbol: ts.Symbol, checker: ts.TypeChecker, options:any): Interface {
     const result: Interface = new Interface(interfaceSymbol.getName());
+    result.namespace=ComponentFactory.getNamespace(interfaceSymbol);
+
+    //search moduleName
+    options.modules.forEach((module:any) => {
+        if(module.sources.includes(fileName)){
+            result.moduleName=module.moduleName;
+        }
+    });
 
     const declaration: ts.InterfaceDeclaration[] | undefined = <ts.InterfaceDeclaration[] | undefined>interfaceSymbol.getDeclarations();
 
     if (interfaceSymbol.members !== undefined) {
-        result.members = ComponentFactory.serializeMethods(interfaceSymbol.members, checker);
-        result.typeParameters = ComponentFactory.serializeTypeParameters(interfaceSymbol.members, checker);
+        result.members = ComponentFactory.serializeMethods(interfaceSymbol.members, checker,options);
+        result.typeParameters = ComponentFactory.serializeTypeParameters(interfaceSymbol.members, checker,options);
     }
 
     if (declaration !== undefined && declaration.length > 0) {

@@ -9,12 +9,16 @@ import { Class } from './Components/Class';
 import * as FileFactory from './Factories/FileFactory';
 import { MermaidFormat } from './Formatter/MermaidFormat';
 import { ICommandOptions } from './Models/ICommandOptions';
+import * as AngularJSComponentFactory from './Factories/AngularJSComponentFactory';
+import { Interface } from './Components/Interface';
 
 const DEFAULT_FILE_NAME = 'source.ts';
 
+
 export function generateDocumentation(
     fileNames: ReadonlyArray<string> | string,
-    options: ts.CompilerOptions = ts.getDefaultCompilerOptions()
+    options: ts.CompilerOptions = ts.getDefaultCompilerOptions(),
+    additionalOptions:any
 ): IComponentComposite[] {
 
     // Build a program using the set of root file names in fileNames
@@ -39,7 +43,7 @@ export function generateDocumentation(
     program.getSourceFiles()
         .forEach((sourceFile: ts.SourceFile): void => {
             if (!sourceFile.isDeclarationFile) {
-                const file: IComponentComposite | undefined = FileFactory.create(sourceFile.fileName, sourceFile, checker);
+                const file: IComponentComposite | undefined = FileFactory.create(sourceFile.fileName, sourceFile, checker,additionalOptions);
                 if (file !== undefined) {
                     result.push(file);
                 }
@@ -70,7 +74,9 @@ export function convertToPlant(files: IComponentComposite[], options: ICommandOp
     associations: false,
     onlyInterfaces: false,
     format: 'plantuml',
-    onlyClasses: false
+    onlyClasses: false,
+	onlyAssociations: false,
+    angularJSComponents:[]
 }): string {
 
     let formatter : Formatter;
@@ -93,26 +99,47 @@ export function convertToPlant(files: IComponentComposite[], options: ICommandOp
         }
     } else if (options.targetClass !== undefined) {
         // Find the class to display
-        const target : Class = <Class> findClass(files, options.targetClass);
+        const target : Class | Interface = <Class | Interface > findClass(files, options.targetClass);
         const parts : IComponentComposite[] = [];
         if (target !== undefined) {
             parts.push(target);
             // Add all the ancestor for the class recursively
-            let parent : string | undefined = target.extendsClass;
+            let parent : string[] | undefined;
+            if(target instanceof Class ) parent=((<Class>target).extendsClass)? [(<Class>target).extendsClass!]:undefined;
+            if(target instanceof Interface) parent=((<Interface>target).extendsInterface)?(<Interface>target).extendsInterface:undefined;
             // Add the parent
-            while (parent !== undefined) {
-                const parentClass : Class = <Class> findClass(files, parent);
-                parts.push(parentClass);
-                parts.push(...getInterfaces(files, parentClass));
-                parent = parentClass.extendsClass;
+            
+            if(parent){
+                parent.forEach((p:string)=>{
+                    let p2:string[] |undefined=[p];
+                    while (p2 !== undefined && p2.length!=0) {
+                        for(let i:number=0;i<p2.length;i++){
+                            let p3:string=p2[i];
+                            p2.shift();
+                            const parentClass : IComponentComposite |undefined =  findClass(files, p3);
+                            if(parentClass){    
+                                parts.push(parentClass);
+                                if(parentClass instanceof Class){
+                                    parts.push(...getInterfaces(files, parentClass));
+                                    p2 = p2.concat( (parentClass.extendsClass)?[parentClass.extendsClass]:[]);    
+                                }else if(parentClass instanceof Interface){
+                                    parts.push(...getImplements(files, parentClass));
+                                    p2 = p2.concat(parentClass.extendsInterface);  
+                                }
+                            }
+                        };
+                    }
+                });
             }
-            // Add all the interface
-            parts.push(...getInterfaces(files, target));
+            if(target instanceof Class){
+                // Add all the interface
+                parts.push(...getInterfaces(files, target));
+            }
             // Add all child class recursively
             parts.push(...findChildClass(files, target));
         }
-
-        return formatter.renderFiles(parts, false);
+        formatter.initializeRegistry(files);
+        return formatter.renderFiles(parts, options.associations);
     }
 
     return formatter.renderFiles(files, options.associations);
@@ -130,12 +157,31 @@ function getInterfaces(files:  IComponentComposite[], comp: Class) : IComponentC
     return res;
 }
 
+function getImplements(files:  IComponentComposite[], comp: Interface) : IComponentComposite[] {
+    const res: IComponentComposite[] = [];
+    for (const file of files) {
+        (<File>file).parts
+            .forEach((part: IComponentComposite): void => {
+                if (part instanceof Class && (part).implementsInterfaces.find((i:string)=>{return i==comp.name})) {
+                    res.push(part);
+                    // Reset interface
+                    part.implementsInterfaces = [];
+                    res.push(...findChildClass(files, part));
+                }
+            });
+    }
+
+    return res;
+}
+
 function findClass(files: IComponentComposite[], name: string) : IComponentComposite | undefined {
     for (const file of files) {
-        for (const part of (<File>file).parts) {
-            if (part.name === name) {
-                return part;
-            }
+        if (file.name === name) {
+            return file;
+        }else if((<any>file).parts){
+            let found: IComponentComposite | undefined=findClass((<any>file).parts,name);
+            if(found)
+                return found;
         }
     }
 
@@ -152,9 +198,25 @@ function findChildClass(files: IComponentComposite[], comp: IComponentComposite)
                     // Reset interface
                     part.implementsInterfaces = [];
                     res.push(...findChildClass(files, part));
+                }else if (part instanceof Interface && (part).extendsInterface.find((i:string)=>{return i==comp.name})) {
+                    res.push(part);
+                    res.push(...findChildClass(files, part));
                 }
             });
     }
 
     return res;
 }
+export function generateAngularJsDocumentation(
+    fileNames: ReadonlyArray<string> ,
+    options: ts.CompilerOptions = ts.getDefaultCompilerOptions(),
+    additionalOptions:any
+): IComponentComposite[] {
+    AngularJSComponentFactory.initializeRegistry(fileNames,options,additionalOptions);
+    let tree:IComponentComposite[]=AngularJSComponentFactory.initializeTree(fileNames,options,additionalOptions);
+    return tree;
+}
+
+
+
+

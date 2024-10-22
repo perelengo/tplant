@@ -1,4 +1,5 @@
 {
+  
   "name": "tplant",
   "version": "3.1.3",
   "description": "Typescript to PlantUML",
@@ -42,6 +43,7 @@
   "dependencies": {
     "commander": "^12.0.0",
     "glob": "^10.3.10",
+    "jsdom": "^25.0.1",
     "node-plantuml": "0.9.0",
     "plantuml-encoder": "^1.4.0",
     "typescript": "^5.3.3"
@@ -49,6 +51,7 @@
   "devDependencies": {
     "@types/glob": "^8.1.0",
     "@types/jest": "^29.5.12",
+    "@types/jsdom": "^21.1.7",
     "@types/node": "^20.11.19",
     "@typescript-eslint/eslint-plugin": "^7.0.1",
     "@typescript-eslint/parser": "^7.0.1",

@@ -8,5 +8,6 @@ export enum ComponentKind {
     NAMESPACE,
     PARAMETER,
     PROPERTY,
-    TYPE_PROPERTY
+    TYPE_PROPERTY,
+    INSTANCE_ANGULARJSCOMPONENT
 }

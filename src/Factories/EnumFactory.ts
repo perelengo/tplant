@@ -2,11 +2,20 @@ import ts from 'typescript';
 import { Enum } from '../Components/Enum';
 import { IComponentComposite } from '../Models/IComponentComposite';
 import * as EnumValueFactory from './EnumValueFactory';
+import * as ComponentFactory from './ComponentFactory';
 
-export function create(enumSymbol: ts.Symbol): Enum {
+export function create(fileName: string,enumSymbol: ts.Symbol, options:any): Enum {
     const result: Enum = new Enum(enumSymbol.getName());
+    result.namespace=ComponentFactory.getNamespace(enumSymbol);
 
-    if (enumSymbol.exports !== undefined) {
+    //search moduleName
+    options.modules.forEach((module:any) => {
+        if(module.sources.includes(fileName)){
+            result.moduleName=module.moduleName;
+        }
+    });
+    
+    if (enumSymbol.exports !== undefined && !options.onlyAssociations) {
         result.values = serializeEnumProperties(enumSymbol.exports);
     }
 

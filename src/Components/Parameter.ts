@@ -8,7 +8,8 @@ export class Parameter extends ComponentComposite {
     public readonly componentKind: ComponentKind = ComponentKind.PARAMETER;
     public hasInitializer: boolean = false;
     public isOptional: boolean = false;
-    public parameterType: string = 'any';
-    public parameterTypeFile: string = '';
-
+    public parameterType: string []= [];
+    public parameterTypeFile: string []= [];
+    public returnTypeFullName: string[]= [];
+    public returnTypeModuleName: string[]= [];
 }

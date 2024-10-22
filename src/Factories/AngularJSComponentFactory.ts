@@ -4,15 +4,24 @@ import { Property } from '../Components/Property';
 import { TypeParameter } from '../Components/TypeParameter';
 import { IComponentComposite } from '../Models/IComponentComposite';
 import { Modifier } from '../Models/Modifier';
-import * as ClassFactory from './ClassFactory';
-import * as EnumFactory from './EnumFactory';
-import * as InterfaceFactory from './InterfaceFactory';
 import * as MethodFactory from './MethodFactory';
-import * as NamespaceFactory from './NamespaceFactory';
 import * as PropertyFactory from './PropertyFactory';
 import * as TypeParameterFactory from './TypeParameterFactory';
+import {File} from '../Components/File';
+import { AngularJSComponentInstance } from '../Components/AngularJSComponentInstance';
+import {Class} from '../Components/Class';
+import { ComponentKind } from '../Models/ComponentKind';
+import { Namespace } from '../Components/Namespace';
+import * as AngularJSComponentFactory from './AngularJSComponentFactory';
+import * as FileFactory from '../Factories/FileFactory';
+import { JSDOM } from 'jsdom';
+import { AngularJSComponent } from '../Components/AngularJSComponent';
 
-exports.getModuleName = getModuleName;
+let componentRegistry: Map<string,AngularJSComponent>= new  Map<string,AngularJSComponent>();
+
+export function getComponentRegistry(){
+    return componentRegistry;
+}; 
 
 export function isNodeExported(node: ts.Node): boolean {
     return (node.flags & ts.ModifierFlags.Export) !== 0 ||
@@ -20,70 +29,11 @@ export function isNodeExported(node: ts.Node): boolean {
         node.parent.kind === ts.SyntaxKind.ModuleBlock;
 }
 
-export function create(fileName: string, node: ts.Node, checker: ts.TypeChecker, options:any): IComponentComposite[] {
-    const componentComposites: IComponentComposite[] = [];
+export function create(path: string, node :Node,tag:string,Class:Class | undefined, _options:any): AngularJSComponent {
 
-    ts.forEachChild(node, (childNode: ts.Node) => {
+    let instance:AngularJSComponent=new AngularJSComponent( path,node,tag,Class);
 
-        // Only consider exported nodes
-        if (!isNodeExported(childNode)) {
-            return;
-        }
-
-        
-    if (childNode.kind === ts.SyntaxKind.ClassDeclaration) {
-        const currentNode: ts.ClassLikeDeclarationBase = <ts.ClassLikeDeclarationBase>childNode;
-        if (currentNode.name === undefined) {
-          return;
-        }
-        // This is a top level class, get its symbol
-        const classSymbol: ts.Symbol | undefined = (<any>currentNode).symbol;
-        if (classSymbol === undefined) {
-          return;
-        }
-        componentComposites.push(ClassFactory.create(fileName, classSymbol, checker,options));
-
-        // No need to walk any further, class expressions/inner declarations
-        // cannot be exported
-    } else if (childNode.kind === ts.SyntaxKind.InterfaceDeclaration) {
-        const currentNode: ts.InterfaceDeclaration = <ts.InterfaceDeclaration>childNode;
-        const interfaceSymbol: ts.Symbol | undefined = (<any>currentNode).symbol;
-        if (interfaceSymbol === undefined) {
-          return;
-        }
-        componentComposites.push(InterfaceFactory.create(fileName,interfaceSymbol, checker,options));
-    } else if (childNode.kind === ts.SyntaxKind.ModuleDeclaration) {
-        const currentNode: ts.NamespaceDeclaration = <ts.NamespaceDeclaration>childNode;
-        const namespaceSymbol: any = (<any>currentNode);
-        if (namespaceSymbol === undefined) {
-          return;
-        }
-        componentComposites.push(NamespaceFactory.create(fileName, namespaceSymbol, checker, options));
-    } else if (childNode.kind === ts.SyntaxKind.EnumDeclaration) {
-        const currentNode: ts.EnumDeclaration = <ts.EnumDeclaration>childNode;
-        const enumSymbol: ts.Symbol | undefined = (<any>currentNode).symbol;
-        if (enumSymbol === undefined) {
-          return;
-        }
-        componentComposites.push(EnumFactory.create(fileName,enumSymbol,options));
-
-        return;
-    }
-      // Functions are not methods in PlantUML! The (fake) methods (that are functions) get placed in the PlantUML outside of a class, and it won't render.
-      //  else if (childNode.kind === ts.SyntaxKind.FunctionDeclaration) {
-      //   const currentNode: ts.FunctionDeclaration = <ts.FunctionDeclaration>childNode;
-      //   if (currentNode.name === undefined) {
-      //     return;
-      //   }
-      //   const functionSymbol: ts.Symbol | undefined = checker.getSymbolAtLocation(currentNode.name);
-      //   if (functionSymbol === undefined) {
-      //     return;
-      //   }
-      //   componentComposites.push(MethodFactory.create(functionSymbol, currentNode, checker));
-      // }
-    });
-
-    return componentComposites;
+    return instance;
 }
 
 function getModifier(modifiers: readonly ts.Modifier[]): Modifier {
@@ -107,48 +57,16 @@ export function getHeritageClauseNames(heritageClause: ts.HeritageClause, checke
         const symbolAtLocation: ts.Symbol | undefined = checker.getSymbolAtLocation(nodeObject.expression);
         if (symbolAtLocation !== undefined) {
             const ogFile: string = getOriginalFile(symbolAtLocation, checker);
-            let qualifiedName = getOriginalName(symbolAtLocation,checker);
+            let qualifiedName = checker.getFullyQualifiedName(symbolAtLocation);
             qualifiedName = qualifiedName.replace(/"[^"]+"\./, "");
             return [qualifiedName, ogFile];
         }
-        if(nodeObject.expression && (<any>nodeObject.expression).name){
-            let namespacedExpression:string=getRecursiveExpression(nodeObject.expression);
-            return [namespacedExpression,''];
-        }else{
-            return ['', ''];
-        }
-        
+
+        return ['', ''];
     });
 }
 
-export function getOriginalFileSource(typeSymbol: ts.Symbol, checker: ts.TypeChecker): ts.SourceFile | undefined{
-    let deAliasSymbol: ts.Symbol;
-
-    if ((typeSymbol.flags & ts.SymbolFlags.Alias) !== 0) {
-        deAliasSymbol = checker.getAliasedSymbol(typeSymbol);
-    } else {
-        deAliasSymbol = typeSymbol;
-    }
-
-    return deAliasSymbol.declarations?.[0].getSourceFile() ;
-}
-
-export function getOriginalFileOriginalTypeSource(tsType: ts.Type, checker: ts.TypeChecker): ts.SourceFile | undefined {
-    if (tsType === undefined || checker === undefined) { return ; }
-
-    let deParameterType: ts.Type = tsType;
-    let typeSymbol: ts.Symbol | undefined = tsType.getSymbol();
-
-    while (typeSymbol?.name === 'Array') {
-        deParameterType = checker.getTypeArguments(<ts.TypeReference>deParameterType)[0];
-        typeSymbol = deParameterType.getSymbol();
-    }
-
-    if (typeSymbol === undefined) { return ; }
-
-    return getOriginalFileSource(typeSymbol, checker);
-}
-export function getOriginalFile(typeSymbol: ts.Symbol, checker: ts.TypeChecker): string {
+function getOriginalFile(typeSymbol: ts.Symbol, checker: ts.TypeChecker): string {
     let deAliasSymbol: ts.Symbol;
 
     if ((typeSymbol.flags & ts.SymbolFlags.Alias) !== 0) {
@@ -159,19 +77,6 @@ export function getOriginalFile(typeSymbol: ts.Symbol, checker: ts.TypeChecker):
 
     return deAliasSymbol.declarations?.[0].getSourceFile().fileName ?? '';
 }
-
-export function getOriginalName(typeSymbol: ts.Symbol, checker: ts.TypeChecker): string {
-    let deAliasSymbol: ts.Symbol;
-
-    if ((typeSymbol.flags & ts.SymbolFlags.Alias) !== 0) {
-        deAliasSymbol = checker.getAliasedSymbol(typeSymbol);
-    } else {
-        deAliasSymbol = typeSymbol;
-    }
-
-    return deAliasSymbol.getName();
-}
-
 
 export function getOriginalFileOriginalType(tsType: ts.Type, checker: ts.TypeChecker): string {
     if (tsType === undefined || checker === undefined) { return ''; }
@@ -248,8 +153,8 @@ export function serializeConstructors(
     options:any
 ): (Property | Method)[] {
   const result: (Property | Method)[] = [];
-   if(options.skipMethods==undefined || (options.skipMethods!==undefined && !options.skipMethods)){
-    if (memberSymbols !== undefined) {
+
+  if (memberSymbols !== undefined) {
       memberSymbols.forEach((memberSymbol: ts.Symbol): void => {
           const memberDeclarations: ts.NamedDeclaration[] | undefined = memberSymbol.getDeclarations();
           if (memberDeclarations === undefined) {
@@ -261,7 +166,6 @@ export function serializeConstructors(
               }
           });
       });
-    }
   }
 
   return result;
@@ -269,8 +173,7 @@ export function serializeConstructors(
 
 export function serializeMethods(memberSymbols: ts.UnderscoreEscapedMap<ts.Symbol>, checker: ts.TypeChecker, options:any): (Property | Method)[] {
     const result: (Property | Method)[] = [];
-    if(options.skipMethods==undefined || (options.skipMethods!==undefined && !options.skipMethods)){
- 
+
     if (memberSymbols !== undefined) {
         memberSymbols.forEach((memberSymbol: ts.Symbol): void => {
             const memberDeclarations: ts.NamedDeclaration[] | undefined = memberSymbol.getDeclarations();
@@ -286,7 +189,7 @@ export function serializeMethods(memberSymbols: ts.UnderscoreEscapedMap<ts.Symbo
             });
         });
     }
-    }
+
     return result;
 }
 
@@ -331,19 +234,8 @@ export function getNamespace(symbol: ts.Symbol): string{
         return "";
     }
 }
-export function getNamespaceFromSourceCode(node: ts.Node): string{
-        let namespace:string="";
-        ts.forEachChild(node, (childNode: ts.Node) => {
-            if (isNodeExported(childNode) && childNode.kind === ts.SyntaxKind.ModuleDeclaration) {
-                let next:string=getNamespaceFromSourceCode(childNode);
-                namespace= (<any>childNode).name.escapedText+((next!="")?"."+next:"");
-            } 
-        });
-        return namespace;
-}
 
-export function getSourceCode(symbol:ts.Symbol, checker: ts.TypeChecker):ts.SourceFile | undefined{
-    /*
+export function getSourceCode(symbol:ts.Symbol){
     if((<any>symbol).parent && (<any>symbol).parent.valueDeclaration.kind !== ts.SyntaxKind.SourceFile){
         const parent: any=(<any>symbol).parent;
         
@@ -355,16 +247,6 @@ export function getSourceCode(symbol:ts.Symbol, checker: ts.TypeChecker):ts.Sour
     }else{
         return null;
     }    
-        */
-    let deAliasSymbol: ts.Symbol;
-
-    if ((symbol.flags & ts.SymbolFlags.Alias) !== 0) {
-        deAliasSymbol = checker.getAliasedSymbol(symbol);
-    } else {
-        deAliasSymbol = symbol;
-    }
-
-    return deAliasSymbol.declarations?.[0].getSourceFile();
 }
 
 export function getImports(source:any):string[]{
@@ -399,7 +281,7 @@ function getImports2(n: any):string[]{
     }
 
     if(n.kind === ts.SyntaxKind.ModuleDeclaration ){
-        let importedNamespaces2:string[]= getImports(n.nextContainer || n.body);
+        let importedNamespaces2:string[]= getImports(n.nextContainer);
         if(importedNamespaces2.length>0)
             importedNamespaces=importedNamespaces.concat(importedNamespaces2);
     }
@@ -432,18 +314,168 @@ export function getModuleName(propertyTypeFile: string, options: any): string {
     }
     return "";
 }
-function getRecursiveExpression(expression: any) {
-    if((<any>expression).expression){
-        let parentExp:string=getRecursiveExpression((<any>expression).expression);
-        if((<any>expression).name)
-            return parentExp+"."+(<any>expression).name.escapedText;
-        else
-            return parentExp+"."+(<any>expression).escapedText;
-    }else{
-        if((<any>expression).name)
-            return (<any>expression).name.escapedText;
-        else
-            return (<any>expression).escapedText;
+export function getComponentTagFromJavascriptClassName(fileName: string): string {
+   let out:string='';
+    for(let i=0;i<fileName.length;i++){
+        if(i!=0 && fileName.charCodeAt(i)>=65 && fileName.charCodeAt(i)<=90){
+            out+="-"+fileName.charAt(i).toLowerCase();
+        }else if(fileName.charAt(i)=="."){
+            break;
+        }else{
+            out+=fileName.charAt(i).toLowerCase();
+        }
+   }
+   return out;
+}
+
+export function getAssociativeParts(part: IComponentComposite): IComponentComposite[]{
+    const out: IComponentComposite[]=[];
+    if (part.componentKind === ComponentKind.CLASS ||
+        part.componentKind === ComponentKind.INTERFACE ||
+        part.componentKind === ComponentKind.ENUM
+    ) {
+        out.push(part);
+    }else if (part.componentKind === ComponentKind.NAMESPACE) {
+        (<Namespace> part ).parts.forEach((element1: any) => {
+            const temp: IComponentComposite[]=getAssociativeParts(element1);
+            temp.forEach((element2: any) => {
+                out.push(element2);
+            });
+        }); 
+    }else if (part.componentKind === ComponentKind.FILE) {
+        (<File> part ).parts.forEach((element1: any) => {
+            const temp: IComponentComposite[]=getAssociativeParts(element1);
+            temp.forEach((element2: any) => {
+                out.push(element2);
+            });
+        }); 
+    }
+    return out;
+}
+/*
+function processRecursiveDom(path: string, node: Node, tag: string, Class: Class, options: any): IComponentComposite[] {
+    node.childNodes.forEach((child:Node)=>{
+        options.
+        if(==
+    });
+}
+
+*/
+
+export function initializeRegistry(
+    fileNames: ReadonlyArray<string> ,
+    options: ts.CompilerOptions = ts.getDefaultCompilerOptions(),
+    additionalOptions:any
+): IComponentComposite[] {
+    let result : IComponentComposite[]=[];
+    // Build a program using the set of root file names in fileNames
+    let program = ts.createProgram(fileNames.filter((f:string)=>{return f.endsWith(".ts")}), options);
+    let Class : Class |undefined;
+    
+
+    let tpls:string[]=fileNames.filter((p:string)=>{return p.endsWith(".html")});
+    tpls.forEach((template:string)=>{
+        let tag:string|undefined;
+        //console.log("processing "+template);
+        let templatePath:string=(<any>template).replaceAll(/\\/gi,"/");
+        let classPath:string=(<any>templatePath).replaceAll(/(\.tpl)?\.html/gi,".ts");
+        let tsSources:ts.SourceFile[]=program.getSourceFiles().filter((s:ts.SourceFile)=>{return s.fileName==classPath});
+        if(tsSources.length==0){
+            let templateName:string=templatePath.substring(templatePath.lastIndexOf("/")+1,templatePath.lastIndexOf("."));
+            tag=AngularJSComponentFactory.getComponentTagFromJavascriptClassName(templateName);
+        }else{
+            let file2: File | undefined = FileFactory.create(tsSources[0].fileName, tsSources[0], program.getTypeChecker(),additionalOptions);
+            let className:string=classPath.substring(classPath.lastIndexOf("/")+1,classPath.lastIndexOf("."));
+            let Classes:IComponentComposite[]=AngularJSComponentFactory.getAssociativeParts(file2);
+            Class =<Class>Classes[0];
+            tag=AngularJSComponentFactory.getComponentTagFromJavascriptClassName(className);
+        }
+        let dom:JSDOM= readDom(template);
+        const angularComponent: AngularJSComponent = AngularJSComponentFactory.create(template,<Node>dom.window.document,tag,Class, additionalOptions);
+        result.push(angularComponent);
+        AngularJSComponentFactory.getComponentRegistry().set(tag,angularComponent);
+    });
+    
+    return result;
+}
+
+function readDom(path: string): JSDOM {
+    const fileContent:any = require('fs').readFileSync(path);
+    return new JSDOM(fileContent);
+
+}
+
+export function initializeTree(
+        fileNames: ReadonlyArray<string> ,
+        _options: ts.CompilerOptions = ts.getDefaultCompilerOptions(),
+        additionalOptions:any
+    ): IComponentComposite[] {
+        let result : IComponentComposite[]=[];
+        let tpls:string[]=fileNames.filter((p:string)=>{return p.endsWith(".html")});
+        tpls.forEach((template:string)=>{
+			let classPath:string=(<any>template).replaceAll(/\\/gi,"/").replaceAll(/(\.tpl)?\.html/gi,".ts");
+            let className:string=classPath.substring(classPath.lastIndexOf("/")+1,classPath.lastIndexOf("."));
+            let tag:string=AngularJSComponentFactory.getComponentTagFromJavascriptClassName(className);
+            let component :AngularJSComponent|undefined=AngularJSComponentFactory.getComponentRegistry().get(tag);
+            if(component){
+                const angularInstance: AngularJSComponentInstance = AngularJSComponentFactory.createInstance(tag,component, additionalOptions);
+                readAdditionalControllers(tag,angularInstance,template,additionalOptions);
+                result=result.concat(angularInstance);
+            }else{
+                console.log("j");
+            }
+        });
+        
+        return result;
+    }
+export function createInstance(componentPath:string, component : AngularJSComponent, additionalOptions: any): AngularJSComponentInstance {
+    let instance : AngularJSComponentInstance =new AngularJSComponentInstance(componentPath,component);
+    let parts:AngularJSComponentInstance[]=[];
+    component.node.childNodes.forEach( (node:Node)=>{
+        let childComponent:AngularJSComponent |undefined=componentRegistry.get(node.nodeName.toLowerCase());
+        if(childComponent){
+            parts=parts.concat(createInstance(componentPath,childComponent, additionalOptions));
+        }else{
+            parts=parts.concat(createInstanceForNonComponentNode(componentPath,node, additionalOptions));
+        }
+    });
+    instance.parts=instance.parts.concat(parts);
+    return instance;
+}
+
+function createInstanceForNonComponentNode(componentPath:string,node : Node, additionalOptions: any): AngularJSComponentInstance []{
+    let parts:AngularJSComponentInstance[]=[];
+    node.childNodes.forEach( (node:Node)=>{
+        let childComponent:AngularJSComponent |undefined=componentRegistry.get(node.nodeName.toLowerCase());
+        if(childComponent){
+            //check non-recursive tag definition
+            if(componentPath.lastIndexOf("/")==-1 || (componentPath.lastIndexOf("/")!=-1 && componentPath.substring(componentPath.lastIndexOf("/")+1)!=node.nodeName.toLowerCase()))
+                parts=parts.concat(createInstance(componentPath+"/"+node.nodeName.toLowerCase(),childComponent, additionalOptions));
+            else
+                console.log("");
+        }else{
+            parts=parts.concat(createInstanceForNonComponentNode(componentPath,node, additionalOptions));
+        }
+        
+    });
+    return parts;
+}
+function readAdditionalControllers(componentPath:string,angularInstance: AngularJSComponentInstance, template: string,additionalOptions:any) {
+    try{
+        const fileContent:any = require('fs').readFileSync((<any>template).replaceAll(".html",".ts"));
+        let controllers:string[]=fileContent.toString().match(/\{([^\}]*)(\s|,)controller\s*:\s*([^,]*),([^\}]*)resolve\s*:\s*\{([^\}]*)}/g);
+        if(controllers!=null){
+            controllers.forEach((matched:string)=>{
+                let controller:string=(<any>matched).match(/( |,)+controller\s*:\s*([^,]*),.*/gi)[0].replace(/.*controller\s*:\s*([^,]*),.*/,"$1");
+                let tagName:string=AngularJSComponentFactory.getComponentTagFromJavascriptClassName(controller);
+                let newControllerComponent:AngularJSComponent|undefined=componentRegistry.get(tagName);
+                let newController:AngularJSComponentInstance=AngularJSComponentFactory.createInstance(componentPath+"/"+tagName,newControllerComponent!, additionalOptions);
+                angularInstance.parts=angularInstance.parts.concat(newController);
+            });
+        }
+    }catch(error){
+        if(error.code!=="ENOENT") //in cases of templates without TS file, this can happen, so error under control
+            throw error;
     }
 }
 

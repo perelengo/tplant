@@ -13,7 +13,7 @@ export function getConstraint(memberDeclaration: ts.Declaration, checker: ts.Typ
     return checker.getTypeFromTypeNode(effectiveConstraint);
 }
 
-export function create(signature: ts.Symbol, namedDeclaration: ts.NamedDeclaration | undefined, checker: ts.TypeChecker): TypeParameter {
+export function create(signature: ts.Symbol, namedDeclaration: ts.NamedDeclaration | undefined, checker: ts.TypeChecker,_options:any): TypeParameter {
     const result: TypeParameter = new TypeParameter(signature.getName());
 
     if (namedDeclaration === undefined) {

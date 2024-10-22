@@ -10,6 +10,7 @@ import { Property } from '../Components/Property';
 import { TypeParameter } from '../Components/TypeParameter';
 import { Formatter } from '../Models/Formatter';
 import { IComponentComposite } from '../Models/IComponentComposite';
+import { AngularJSComponent } from '../Components/AngularJSComponent';
 
 /**
  * Export diagram class using mermaidjs format
@@ -56,7 +57,7 @@ export class MermaidFormat extends Formatter {
         return result.join(os.EOL);
     }
 
-    public addAssociation(type1: string, cardinality: string, type2: string) : string[] {
+    public addAssociation(type1: string, cardinality: string, type2: string, _endName:string) : string[] {
         return [
             `${type1} ..> "${cardinality}" ${type2}`
         ];
@@ -117,7 +118,7 @@ export class MermaidFormat extends Formatter {
         result += comp.parameters
             .map((parameter: IComponentComposite): string => this.serialize(parameter))
             .join(', ');
-        result += `)${(comp.isAbstract ? '*' : '')}${(comp.isStatic ? '$' : '')}: ${this.cleanType(comp.returnType)}`;
+        result += `)${(comp.isAbstract ? '*' : '')}${(comp.isStatic ? '$' : '')}: ${this.cleanType(comp.returnType[0])}`;
 
         return result;
     }
@@ -142,7 +143,7 @@ export class MermaidFormat extends Formatter {
 
     public serializeParameter(comp: Parameter) : string {
         let result : string = `${comp.name}${comp.isOptional || comp.hasInitializer ? '?' : ''}`;
-        const typeDef : string = this.cleanType(comp.parameterType);
+        const typeDef : string = this.cleanType(comp.parameterType[0]);
         if (typeDef !== undefined) {
             result += `: ${typeDef}`;
         }
@@ -152,7 +153,7 @@ export class MermaidFormat extends Formatter {
 
     public serializeProperty(comp: Property) : string {
         let result: string = { public: '+', private: '-', protected: '#' }[comp.modifier];
-        result += `${comp.name}${(comp.isOptional ? '?' : '')}${(comp.isAbstract ? '*' : '')}${(comp.isStatic ? '$' : '')}: ${this.cleanType(comp.returnType)}`;
+        result += `${comp.name}${(comp.isOptional ? '?' : '')}${(comp.isAbstract ? '*' : '')}${(comp.isStatic ? '$' : '')}: ${this.cleanType(comp.returnType.join(" | "))}`;
 
         return result;
     }
@@ -181,5 +182,8 @@ export class MermaidFormat extends Formatter {
             })
             .join(os.EOL);
 
+    }
+    public serializeAngularJSComponent(_component: AngularJSComponent): string {
+        throw new Error('Method not implemented.');
     }
 }

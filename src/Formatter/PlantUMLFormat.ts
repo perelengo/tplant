@@ -9,13 +9,16 @@ import { Parameter } from '../Components/Parameter';
 import { Property } from '../Components/Property';
 import { TypeParameter } from '../Components/TypeParameter';
 import { Formatter } from '../Models/Formatter';
-import { IComponentComposite } from '../Models/IComponentComposite';
+import {  IComponentComposite } from '../Models/IComponentComposite';
+import { AngularJSComponentInstance } from '../Components/AngularJSComponentInstance';
 
 /**
  * Export diagram class using plantuml format
  */
 export class PlantUMLFormat extends Formatter {
 
+    protected anonymousEtitiesRegistry: Map<string, string>=new Map<string, string>();
+    
     public header(): string[] {
       const result: string[] = ['@startuml'];
 
@@ -30,9 +33,10 @@ export class PlantUMLFormat extends Formatter {
         return ['@enduml'];
     }
 
-    public addAssociation(type1: string, cardinality: string, type2: string) : string[] {
+    public addAssociation(type1: string, cardinality: string, type2: string, endName:string) : string[] {
+        
         return [
-            `${type1} --> "${cardinality}" ${type2}`
+            `"${this.getAnonymized(type1)}" --> "${cardinality} ${endName}" "${(<any>this.getAnonymized(type2)).replaceAll(/\[\]/gi,"")}"`
         ];
     }
 
@@ -42,7 +46,11 @@ export class PlantUMLFormat extends Formatter {
         if (comp.isAbstract) {
             firstLine.push('abstract ');
         }
-        firstLine.push(`class ${comp.name}`);
+
+        let namespacedName=(!comp.namespace || (comp.namespace && comp.namespace.length==0))?comp.name:comp.namespace+"."+comp.name;
+        let fullName=(!comp.moduleName || (comp.moduleName && comp.moduleName.length==0))?namespacedName:comp.moduleName+"."+namespacedName;;
+
+        firstLine.push(`class "${comp.name}" as ${this.getAnonymized(fullName)}`);
         if (comp.typeParameters.length > 0) {
             firstLine.push('<');
             firstLine.push(comp.typeParameters
@@ -67,7 +75,9 @@ export class PlantUMLFormat extends Formatter {
         }
         result.push(firstLine.join(''));
         comp.members.forEach((member: IComponentComposite): void => {
-            result.push(`    ${this.serialize(member)}`);
+            let line=this.serialize(member);
+            if(line!=="")
+                result.push(`    ${line}`);
         });
         if (comp.members.length > 0) {
             result.push('}');
@@ -76,7 +86,11 @@ export class PlantUMLFormat extends Formatter {
 
     public serializeEnum(comp: Enum): string {
         const result: string[] = [];
-        let declaration: string = `enum ${comp.name}`;
+
+        let namespacedName=(!comp.namespace || (comp.namespace && comp.namespace.length==0))?comp.name:comp.namespace+"."+comp.name;
+        let fullName=(!comp.moduleName || (comp.moduleName && comp.moduleName.length==0))?namespacedName:comp.moduleName+"."+namespacedName;;
+
+        let declaration: string = `enum "${comp.name}" as ${fullName}`;
         if (comp.values.length > 0) {
             declaration += ' {';
         }
@@ -94,7 +108,11 @@ export class PlantUMLFormat extends Formatter {
     public serializeInterface(comp: Interface): string {
         const result: string[] = [];
         const firstLine: string[] = [];
-        firstLine.push(`interface ${comp.name}`);
+        
+        let namespacedName=(!comp.namespace || (comp.namespace && comp.namespace.length==0))?comp.name:comp.namespace+"."+comp.name;
+        let fullName=(!comp.moduleName || (comp.moduleName && comp.moduleName.length==0))?namespacedName:comp.moduleName+"."+namespacedName;;
+
+        firstLine.push(`interface "${comp.name}" as ${fullName}`);
         if (comp.typeParameters.length > 0) {
             firstLine.push('<');
             firstLine.push(comp.typeParameters
@@ -125,14 +143,22 @@ export class PlantUMLFormat extends Formatter {
 
     public serializeNamespace(comp: Namespace) : string {
         const result: string[] = [];
-        result.push(`namespace ${comp.name} {`);
+
+        let margin:string=(comp.isTopNamespace && comp.moduleName)?'    ':'';
+        if(comp.isTopNamespace && comp.moduleName)
+            result.push(`namespace ${comp.moduleName} {`);
+        result.push(`${margin}namespace ${comp.name} {`);
         comp.parts.forEach((part: IComponentComposite): void => {
+            let margin2:string=(comp.isTopNamespace && comp.moduleName)?'        ':'    ';
             result.push(
                 this.serialize(part)
-                    .replace(/^(?!\s*$)/gm, '    ')
+                    .replace(/^(?!\s*$)/gm, margin2)
             );
+            
         });
-        result.push('}');
+        result.push(`${margin}}`);
+        if(comp.isTopNamespace && comp.moduleName)
+            result.push('}');
 
         return result.join(os.EOL);
     }
@@ -145,7 +171,7 @@ export class PlantUMLFormat extends Formatter {
         let result: string = { public: '+', private: '-', protected: '#' }[comp.modifier];
         result += (comp.isAbstract ? '{abstract} ' : '');
         result += (comp.isStatic ? '{static} ' : '');
-        result += `${comp.name}${(comp.isOptional ? '?' : '')}: ${comp.returnType}`;
+        result += `${comp.name}${(comp.isOptional ? '?' : '')}: ${comp.returnType.join(" | ")}`;
 
         return result;
     }
@@ -153,5 +179,29 @@ export class PlantUMLFormat extends Formatter {
     public serializeTypeParameter(comp: TypeParameter) : string {
         return `${comp.name}${(comp.constraint !== undefined ? ` extends ${comp.constraint}` : '')}`;
     }
+    
+    public serializeAngularJSComponent(comp: AngularJSComponentInstance): string {
+        const result: string[] = [];
+        
+        result.push(`class "${comp.name}" as ${comp.componentPath}`);
+        comp.parts.forEach((part:IComponentComposite)=>{
+            result.push(this.serializeAngularJSComponent(<AngularJSComponentInstance>part));
+        });
+        return result.join(os.EOL);
+    }
 
+    public getAnonymized(name: string) :string{
+        if(name.indexOf("{")!=-1 || name.indexOf("(")!=-1){
+            let existing:string|undefined=this.anonymousEtitiesRegistry.get(name);
+            if(existing){
+                return existing;
+            }else{
+                let anonimizedName="Anonymous@"+this.anonymousEtitiesRegistry.size;
+                this.anonymousEtitiesRegistry.set(name,anonimizedName);
+                return anonimizedName;
+            }
+        }else{
+            return name;
+        }
+    }
 }

@@ -7,4 +7,6 @@ import { ComponentComposite, IComponentComposite } from '../Models/IComponentCom
 export class Namespace extends ComponentComposite {
     public readonly componentKind: ComponentKind = ComponentKind.NAMESPACE;
     public parts: IComponentComposite[] = [];
+    public moduleName?: string;
+    isTopNamespace?: boolean;
 }
