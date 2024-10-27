@@ -565,6 +565,7 @@ function isComplexType(returnType: string) {
                 //&& val !== "("
                 && val !== "false"
                 && val !== "true"
+                && val !== "any"
                 && val !== "\""
                 //&& val.indexOf ("{")==-1
             })!=-1
